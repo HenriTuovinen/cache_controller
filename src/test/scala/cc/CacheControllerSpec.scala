@@ -6,6 +6,7 @@ import chisel3._
 import chiseltest._
 //import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 //import chisel3.experimental._
 //import chisel3.experimental.BundleLiterals._
 
@@ -23,6 +24,47 @@ import org.scalatest.flatspec.AnyFlatSpec
   */
 class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
   behavior of "CacheController"
+
+// the issue might be with cache being instantiated inside the cachecontroller and this is not supported by this test
+// or this needs some additional steps
+
+
+  it should "testing cache only" in {                            //test the cache alone
+
+
+
+    test(new Cache(2,3,4)) { dut =>
+      //val buffSource = io.Source.fromFile("/resources/")
+      //dut.io.addr.peek()
+      //dut.io.datain.peek()
+      
+      //dut.io.we.peek()
+
+      //println("before input" + dut.io.dataout.peek().litValue)
+      //printf("paskaaa")
+
+      dut.io.we.poke(1.U)
+      dut.io.addr.poke(7.U)
+      dut.io.datain.poke(2.U)
+
+      dut.clock.step(10)
+
+      //println("after input" + dut.io.dataout.peek().litValue)
+      dut.io.dataout.expect("hb".U)
+    }
+  }
+
+/*
+  it should "just peekking into controller" in {                            //test the cache alone
+    test(new CacheController(2,3,2)) { dut =>
+      //val buffSource = io.Source.fromFile("/resources/")
+      
+    }
+  }
+*/
+
+
+/*
   it should "testing basic operation with peek poke" in {
     test(new CacheController(2,3,2)) { dut =>
       //val buffSource = io.Source.fromFile("/resources/")
@@ -59,4 +101,6 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
       dut.memout.data.peek()
     }
   }
+  */
+
 }
