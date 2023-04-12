@@ -7,26 +7,28 @@ import scala.math
 import chisel3.util._
 
 
-class Cache(size: Int, addr_len: Int, data_len: Int) extends  Module {
+
+class Cache(addr_len: Int, tag_len: Int, data_len: Int) extends  Module {
     val io = IO(new Bundle{
-        val addr    = Input(new dividedAddress(size, (addr_len - size)))
+        val addr    = Input(UInt(addr_len.W))
+        val tag     = Input(UInt(tag_len.W))
         val datain  = Input(UInt(data_len.W))
-        val dataout = Output(new memField(data_len, (addr_len - size)))
         val we      = Input(Bool())
+
+        val dataout = Output(UInt(data_len.W))
+        val tagout  = Output(UInt(tag_len.W))
+        val valid   = Output(Bool())
     })
-    val wr  = Wire(new memField(data_len,(addr_len - size)))
+    val wr  = Wire(UInt((addr_len + tag_len + 1).W))
+    val mem = Mem(math.pow(2, addr_len).toInt, UInt((addr_len + tag_len + 1).W)) 
 
-    val mem = Mem(math.pow(2, size).toInt, new memField(data_len,(addr_len - size))) 
+    wr :=  mem.read(io.addr)
 
-    //val temp = Wire(UInt(addr_len.W)) // might need something like this inorder to get subset of address bits to form the tag
+    io.dataout  := wr(addr_len + tag_len, tag_len+1)
+    io.tagout   := wr(tag_len, 1)
+    io.valid    := wr(0)
 
-
-    io.dataout := mem.read(io.addr.memadr)
     when(io.we) {
-      wr.data  := io.datain
-      wr.tag   := io.addr.tag
-      wr.valid := true.B
- 
-      mem.write(io.addr.memadr, wr)
+      mem.write(io.addr, Cat(io.datain, io.tag, true.B))
     }
 }

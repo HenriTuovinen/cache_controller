@@ -7,22 +7,10 @@ import chisel3.util._
 import chisel3.experimental._
 //import chisel3.util.Decoupled
 
-object State extends ChiselEnum {                                   //enumeration for the finite state machine
+object State extends ChiselEnum{                                   //enumeration for the finite state machine
     val idle, compare, write, allocate = Value
 }
 import State._
-
-
-class memField(val dl: Int, val tl: Int) extends Bundle {           //custom bundle for all the field stored in memory 
-  val data  = UInt(dl.W)
-  val tag   = UInt(tl.W)
-  val valid = Bool()
-}
-
-class dividedAddress(val mal: Int, val tl: Int) extends Bundle {     //custom bundle for address with tag and mem address
-    val memadr  = UInt(mal.W)
-    val tag     = UInt(tl.W)
-}
 
 
 
@@ -64,68 +52,81 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
     val memout  = IO(new CcMemoryOutputBundle(addr_len, data_len))
 
 
-    val memf = Wire(new memField(data_len,(addr_len - size)))
-    val daddr = Wire(new dividedAddress(size, (addr_len - size)))
-    //val vecad = Wire(Vec(addr_len, UInt(1.W)))
+    //val memf = Wire(new memField(data_len,(addr_len - size)))
+    //val daddr = Wire(new dividedAddress(size, (addr_len - size)))
+    val vecad = Wire(UInt(addr_len.W))
 
 
-    val len = (data_len + (addr_len - size) + 1).toInt
+    //val len = (data_len + (addr_len - size) + 1).toInt
 
     val state   = RegInit(State.idle)
+    val valid   = RegInit(false.B)
+    val busy    = RegInit(false.B)
+    val hit     = RegInit(false.B)
 
-    val cache = Module(new Cache(size, addr_len, data_len))
+    val req     = RegInit(false.B)
+    //val 
 
+    val we      = RegInit(false.B)
 
-
-    //vecad := cpuin.addr
-    daddr.memadr := cpuin.addr((size - 1), 0)
-    daddr.tag := cpuin.addr((addr_len-1), size)
-
-
-
-
-
-    //bellow unupdated code for this new way of handling the address and memoryfield
+    val cache = Module(new Cache(size, addr_len - size, data_len))
 
 
 
+    vecad := cpuin.addr
+    //daddr.memadr := cpuin.addr((size - 1), 0)
+    //daddr.tag := cpuin.addr((addr_len-1), size)
+
+    //cache.io.addr := daddr
 
 
 
+    cpuout.data     := cache.io.dataout
+    cpuout.valid    := valid
+    cpuout.busy     := busy
+    cpuout.hit      := hit
 
+    memout.addr     := cpuin.addr
+    memout.req      := req
+    memout.rw       := cpuin.rw
+    memout.data     := cpuin.data
+
+    cache.io.addr   := cpuin.addr(size-1, 0)
+    cache.io.tag    := cpuin.addr(addr_len-1, size)
+    cache.io.datain := memin.data
+    cache.io.we     := we
+                
 
     switch (state) {
         is (idle) {
-            //cpuout.busy := false.B //might need to move this to the last step istead i.e compare step I think
-            when(cpuout.hit) {
-                cpuout.busy := false.B
+            when(hit) {
+                busy := false.B
                 //cpuout.valid := false.B
-                //cpuout.hit := false.B
+                hit := false.B
             }
-            when(cpuin.valid) {
-                cpuout.busy := true.B
-                cpuout.valid := false.B
+            when(cpuin.valid) {                     //this might happen too soon or not not sure
+                busy := true.B
+                valid := false.B
                 //cpuout.hit := false.B
                 state := State.compare
             }
         }
          is (compare) {
-            cache.io.addr := cpuin.addr
-            if(cache.io.dataout.apply(0).litToBoolean) {        // if(cache.io.dataout.tail(len-1).asBool().litToBoolean) {
-                if((cpuin.addr(size, addr_len) === cache.io.dataout(data_len, (len - 1))).litToBoolean) {        //check if the tag is same in memory and cpu addr  this may have issue with LSB MSB type thing
-                    cpuout.data := cache.io.dataout(0, data_len)
-                    cpuout.valid := true.B
-                    cpuout.hit := true.B
+            when(cache.io.valid) {        // if(cache.io.dataout.tail(len-1).asBool().litToBoolean) {
+                when(cpuin.addr(addr_len-1, size) === cache.io.tagout) {        //check if the tag is same in memory and cpu addr  this may have issue with LSB MSB type thing
+                    //cpuout.data := cache.io.dataout
+                    valid := true.B
+                    hit := true.B
                     state := State.idle
                 }
-                else {
-                    cache.io.we := true.B
+                .otherwise {
+                    we := true.B
                     state := State.allocate
                 }
 
             }
-            else {
-                cache.io.we := true.B
+            .otherwise {
+                we := true.B
                 state := allocate
             }
 
@@ -133,16 +134,17 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
         // is (write) {}
          is (allocate){
             when(memin.ready) {
-                memout.req := true.B
-                memout.addr := cpuin.addr                                           //might want to check that this is still valid
-                memout.rw := cpuin.rw
+                req := true.B
+                //memout.addr := cpuin.addr                                           //might want to check that this is still valid
+                //memout.rw := cpuin.rw
                 //when(cpuin.rw) {}
-                memout.data := cpuin.data
+                //memout.data := cpuin.data
 
             }
             when(memin.valid) {
-                cache.io.datain := memin.data
-                memout.req := false.B
+                //cache.io.datain := memin.data
+                //cache.io.tag    := cpuin.addr(addr_len-1, size)
+                req := false.B
                 state := State.compare                                                // there might be some issue due to delay but should not be
             }
         }
