@@ -45,16 +45,28 @@ class CcMemoryOutputBundle(val addr_len: Int, val data_len: Int) extends Bundle{
 class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
     require(addr_len >= 0)
     require(data_len >= 0)
+    val io = IO(new Bundle {
+        val cpuin   = new CcCPUInputBundle(addr_len, data_len)
+        val cpuout  = new CcCPUOutputBundle(data_len)
+        val memin   = new CcMemoryInputBundle(data_len)
+        val memout  = new CcMemoryOutputBundle(addr_len, data_len)
+    })
 
-    val cpuin   = IO(new CcCPUInputBundle(addr_len, data_len))
-    val cpuout  = IO(new CcCPUOutputBundle(data_len))
-    val memin   = IO(new CcMemoryInputBundle(data_len))
-    val memout  = IO(new CcMemoryOutputBundle(addr_len, data_len))
 
+    /*
+    val io.cpuin   = IO(new Ccio.CPUInputBundle(addr_len, data_len))
+    val io.cpuout  = IO(new Ccio.CPUOutputBundle(data_len))
+    val io.memin   = IO(new CcMemoryInputBundle(data_len))
+    val io.memout  = IO(new CcMemoryOutputBundle(addr_len, data_len))
+    */
 
     //val memf = Wire(new memField(data_len,(addr_len - size)))
     //val daddr = Wire(new dividedAddress(size, (addr_len - size)))
-    val vecad = Wire(UInt(addr_len.W))
+    
+    
+    
+    
+    //val vecad = Wire(UInt(addr_len.W))
 
 
     //val len = (data_len + (addr_len - size) + 1).toInt
@@ -73,27 +85,27 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
 
 
 
-    vecad := cpuin.addr
-    //daddr.memadr := cpuin.addr((size - 1), 0)
-    //daddr.tag := cpuin.addr((addr_len-1), size)
+    //vecad := io.cpuin.addr
+    //daddr.memadr := io.cpuin.addr((size - 1), 0)
+    //daddr.tag := io.cpuin.addr((addr_len-1), size)
 
     //cache.io.addr := daddr
 
 
 
-    cpuout.data     := cache.io.dataout
-    cpuout.valid    := valid
-    cpuout.busy     := busy
-    cpuout.hit      := hit
+    io.cpuout.data     := cache.io.dataout
+    io.cpuout.valid    := valid
+    io.cpuout.busy     := busy
+    io.cpuout.hit      := hit
 
-    memout.addr     := cpuin.addr
-    memout.req      := req
-    memout.rw       := cpuin.rw
-    memout.data     := cpuin.data
+    io.memout.addr     := io.cpuin.addr
+    io.memout.req      := req
+    io.memout.rw       := io.cpuin.rw
+    io.memout.data     := io.cpuin.data
 
-    cache.io.addr   := cpuin.addr(size-1, 0)
-    cache.io.tag    := cpuin.addr(addr_len-1, size)
-    cache.io.datain := memin.data
+    cache.io.addr   := io.cpuin.addr(size-1, 0)
+    cache.io.tag    := io.cpuin.addr(addr_len-1, size)
+    cache.io.datain := io.memin.data
     cache.io.we     := we
                 
 
@@ -101,20 +113,20 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
         is (idle) {
             when(hit) {
                 busy := false.B
-                //cpuout.valid := false.B
+                //io.cpuout.valid := false.B
                 hit := false.B
             }
-            when(cpuin.valid) {                     //this might happen too soon or not not sure
+            when(io.cpuin.valid) {                     //this might happen too soon or not not sure
                 busy := true.B
                 valid := false.B
-                //cpuout.hit := false.B
+                //io.cpuout.hit := false.B
                 state := State.compare
             }
         }
          is (compare) {
             when(cache.io.valid) {        // if(cache.io.dataout.tail(len-1).asBool().litToBoolean) {
-                when(cpuin.addr(addr_len-1, size) === cache.io.tagout) {        //check if the tag is same in memory and cpu addr  this may have issue with LSB MSB type thing
-                    //cpuout.data := cache.io.dataout
+                when(io.cpuin.addr(addr_len-1, size) === cache.io.tagout) {        //check if the tag is same in memory and cpu addr  this may have issue with LSB MSB type thing
+                    //io.cpuout.data := cache.io.dataout
                     valid := true.B
                     hit := true.B
                     state := State.idle
@@ -133,17 +145,17 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
         }
         // is (write) {}
          is (allocate){
-            when(memin.ready) {
+            when(io.memin.ready) {
                 req := true.B
-                //memout.addr := cpuin.addr                                           //might want to check that this is still valid
-                //memout.rw := cpuin.rw
-                //when(cpuin.rw) {}
-                //memout.data := cpuin.data
+                //io.memout.addr := io.cpuin.addr                                           //might want to check that this is still valid
+                //io.memout.rw := io.cpuin.rw
+                //when(io.cpuin.rw) {}
+                //io.memout.data := io.cpuin.data
 
             }
-            when(memin.valid) {
-                //cache.io.datain := memin.data
-                //cache.io.tag    := cpuin.addr(addr_len-1, size)
+            when(io.memin.valid) {
+                //cache.io.datain := io.memin.data
+                //cache.io.tag    := io.cpuin.addr(addr_len-1, size)
                 req := false.B
                 state := State.compare                                                // there might be some issue due to delay but should not be
             }
