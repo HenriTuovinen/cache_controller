@@ -4,11 +4,13 @@ package cc
 
 import chisel3._
 import chiseltest._
+import chisel3.experimental._
 //import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-//import chisel3.experimental._
 //import chisel3.experimental.BundleLiterals._
+
+import scala.math
 
 
 /**
@@ -23,6 +25,11 @@ import org.scalatest.matchers.should.Matchers
   * }}}
   */
 class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
+  val size      : Int = 4
+  val addr_len  : Int = 64
+  val data_len  : Int = 32
+
+
   behavior of "CacheController"
 
 // the issue might be with cache being instantiated inside the cachecontroller and this is not supported by this test
@@ -76,52 +83,194 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
 
 
-  it should "testing basic operation with peek poke" in {
+  it should "do basic operation with peek poke" in {
     test(new CacheController(2,3,2)) { dut =>
       //val buffSource = io.Source.fromFile("/resources/")
-      dut.cpuout.data.peek()
-      dut.cpuout.valid.peek()
-      dut.cpuout.busy.peek()
-      dut.cpuout.hit.peek()
+      dut.io.cpuout.data.peek()
+      dut.io.cpuout.valid.peek()
+      dut.io.cpuout.busy.peek()
+      dut.io.cpuout.hit.peek()
 
-      dut.memout.addr.peek()
-      dut.memout.req.peek()
-      dut.memout.rw.peek()
-      dut.memout.data.peek()
+      dut.io.memout.addr.peek()
+      dut.io.memout.req.peek()
+      dut.io.memout.rw.peek()
+      dut.io.memout.data.peek()
 
 
-      dut.cpuin.addr.poke("b010".U)
-      dut.cpuin.valid.poke(true.B)
-      dut.cpuin.rw.poke(false.B)
-      dut.cpuin.data.poke("b11".U)
+      dut.io.cpuin.addr.poke("b010".U)
+      dut.io.cpuin.valid.poke(true.B)
+      dut.io.cpuin.rw.poke(false.B)
+      dut.io.cpuin.data.poke("b11".U)
 
-      dut.memin.data.poke("b01".U)
-      dut.memin.valid.poke(true.B)
-      dut.memin.ready.poke(true.B)
+      dut.io.memin.data.poke("b01".U)
+      dut.io.memin.valid.poke(true.B)
+      dut.io.memin.ready.poke(true.B)
 
       dut.clock.step(10)
 
-      dut.cpuout.data.peek()
-      dut.cpuout.valid.peek()
-      dut.cpuout.busy.peek()
-      dut.cpuout.hit.peek()
+      println(dut.io.cpuout.data.peek().litValue)
+      println(dut.io.cpuout.valid.peek().litValue)
+      println(dut.io.cpuout.busy.peek().litValue)
+      println(dut.io.cpuout.hit.peek().litValue)    
 
-      dut.memout.addr.peek()
-      dut.memout.req.peek()
-      dut.memout.rw.peek()
-      dut.memout.data.peek()
+      println(dut.io.memout.addr.peek().litValue)
+      println(dut.io.memout.req.peek().litValue)
+      println(dut.io.memout.rw.peek().litValue)
+      println(dut.io.memout.data.peek().litValue)
+            
 
 
+      dut.io.cpuout.data.expect("b01".U)
+      dut.io.cpuout.valid.expect(true.B)
+      dut.io.cpuout.busy.expect(true.B)
+      dut.io.cpuout.hit.expect(true.B)
 
-      dut.cpuout.data.expect("b01".U)
-      dut.cpuout.valid.expect(true.B)
-      dut.cpuout.busy.expect(true.B)
-      dut.cpuout.hit.expect(true.B)
-
-      dut.memout.addr.expect("b010".U)
-      dut.memout.req.expect(false.B)
-      dut.memout.rw.expect(false.B)
-      dut.memout.data.expect("b11".U)
+      dut.io.memout.addr.expect("b010".U)
+      dut.io.memout.req.expect(false.B)
+      dut.io.memout.rw.expect(false.B)
+      dut.io.memout.data.expect("b11".U)
+    
     }
   }
+
+  it should "test all" in {
+    test(new CacheController(size, addr_len, data_len)) {dut =>
+      val numTests : Int = 10
+
+
+      val addr = Seq.tabulate(numTests){i=>scala.util.Random.nextInt(math.pow(2, addr_len).toInt-1).U}
+      /*
+      val addr = Wire(Vec(numTests, UInt(addr_len.W)))      //mignth need Wire() wrapper
+      for (i <- 0 until addr.length) {
+        addr(i) := scala.util.Random.nextInt(math.pow(2, addr_len).toInt-1).U
+        //addr(i) := 2.U(addr_len.W)
+        //scala.util.Random.nextBytes(addr_len)
+      }
+      */
+      //val io = IO(chiselTypeOf(dut.io))
+      //dut.io <> io
+
+      val memdata = Seq.tabulate(numTests){i=>scala.util.Random.nextInt(math.pow(2, data_len).toInt-1).U}
+      /*
+      val memdata = Wire(Vec(numTests, UInt(data_len.W)))
+      for (i <- 0 until memdata.length) {
+        memdata(i) := scala.util.Random.nextInt(math.pow(2, data_len).toInt-1).U
+      }
+      */
+
+      val writedata = Seq.tabulate(numTests){i=>scala.util.Random.nextInt(math.pow(2, addr_len).toInt-1).U}
+      /*
+      val writedata = Wire(Vec(numTests, UInt(data_len.W)))           //for testing writing data from cpu
+      for (i <- 0 until writedata.length) {
+        writedata(i) := scala.util.Random.nextInt(math.pow(2, data_len).toInt-1).U
+      }
+      */
+      
+      for (i <- 0 until numTests) {
+        dut.io.cpuin.addr.poke(addr(i))
+        dut.io.cpuin.valid.poke(true.B)
+        dut.io.cpuin.rw.poke(false.B)
+        dut.io.cpuin.data.poke(0.U(data_len.W))
+
+        dut.io.memin.data.poke(0.U)
+        dut.io.memin.valid.poke(false.B)
+        dut.io.memin.ready.poke(true.B)
+        
+
+        when(true.B){
+          dut.clock.step(4)
+          dut.io.memin.data.poke(memdata(i))
+          dut.io.memin.ready.poke(false.B)
+          dut.io.memin.valid.poke(true.B)
+        }
+
+        dut.io.cpuout.data.expect(memdata(i))
+        dut.io.cpuout.valid.expect(true.B)
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(true.B)
+
+        dut.io.memout.addr.expect(addr(i))
+        dut.io.memout.req.expect(false.B)
+        dut.io.memout.rw.expect(false.B)
+        dut.io.memout.data.expect(0.U)
+
+      }
+
+
+
+      /*
+      addr.zip(memdata).foreach { case (a, d) =>
+        dut.io.cpuin.addr.poke(a)
+        dut.io.cpuin.valid.poke(true.B)
+        dut.io.cpuin.rw.poke(false.B)
+        dut.io.cpuin.data.poke(0.U(data_len.W))
+
+        dut.io.memin.data.poke(0.U)
+        dut.io.memin.valid.poke(false.B)
+        dut.io.memin.ready.poke(true.B)
+        
+
+        when(dut.io.memout.req){
+          dut.clock.step(4)
+          dut.io.memin.data.poke(d)
+          dut.io.memin.ready.poke(false.B)
+          dut.io.memin.valid.poke(true.B)
+        }
+
+        dut.io.cpuout.data.expect(d)
+        dut.io.cpuout.valid.expect(true.B)
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(true.B)
+
+        dut.io.memout.addr.expect(a)
+        dut.io.memout.req.expect(false.B)
+        dut.io.memout.rw.expect(false.B)
+        dut.io.memout.data.expect(0.U)
+
+      }
+      */
+
+
+      /*
+      for {
+        a <- addr
+        d <- memdata
+      } {
+        
+        dut.io.cpuin.addr.poke(a)
+        dut.io.cpuin.valid.poke(true.B)
+        dut.io.cpuin.rw.poke(false.B)
+        dut.io.cpuin.data.poke(0.U(data_len.W))
+
+        dut.io.memin.data.poke(0.U)
+        dut.io.memin.valid.poke(false.B)
+        dut.io.memin.ready.poke(true.B)
+        
+
+        when(dut.io.memout.req){
+          dut.clock.step(4)
+          dut.io.memin.data.poke(d)
+          dut.io.memin.ready.poke(false.B)
+          dut.io.memin.valid.poke(true.B)
+        }
+
+        dut.io.cpuout.data.expect(d)
+        dut.io.cpuout.valid.expect(true.B)
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(true.B)
+
+        dut.io.memout.addr.expect(a)
+        dut.io.memout.req.expect(false.B)
+        dut.io.memout.rw.expect(false.B)
+        dut.io.memout.data.expect(0.U)
+        
+
+
+      }
+      */
+
+    }
+  }
+
+
 }
