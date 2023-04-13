@@ -22,13 +22,18 @@ class Cache(addr_len: Int, tag_len: Int, data_len: Int) extends  Module {
     val wr  = Wire(UInt((addr_len + tag_len + 1).W))
     val mem = Mem(math.pow(2, addr_len).toInt, UInt((addr_len + tag_len + 1).W)) 
 
+    val ore = RegInit(0.U(data_len.W))
+
     wr :=  mem.read(io.addr)
 
-    io.dataout  := wr(addr_len + tag_len, tag_len+1)
+    ore  := wr(addr_len + tag_len, tag_len+1)
+    io.dataout  := ore
     io.tagout   := wr(tag_len, 1)
     io.valid    := wr(0)
+  
 
     when(io.we) {
+      //mem.write(io.addr, Cat(io.datain, io.tag, true.B))
       mem.write(io.addr, Cat(io.datain, io.tag, true.B))
     }
 }
