@@ -54,12 +54,6 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
     })
 
 
-    /*
-    val io.cpuin   = IO(new Ccio.CPUInputBundle(addr_len, data_len))
-    val io.cpuout  = IO(new Ccio.CPUOutputBundle(data_len))
-    val io.memin   = IO(new CcMemoryInputBundle(data_len))
-    val io.memout  = IO(new CcMemoryOutputBundle(addr_len, data_len))
-    */
 
     //val memf = Wire(new memField(data_len,(addr_len - size)))
     //val daddr = Wire(new dividedAddress(size, (addr_len - size)))
@@ -83,6 +77,10 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
     val we      = RegInit(false.B)
 
     val cache = Module(new Cache(size, addr_len - size, data_len))
+
+
+
+    val outreg = RegInit(0.U(data_len.W))
 
 
 
@@ -110,7 +108,7 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
 
     //cache.io.addr := daddr
 
-
+    outreg := cache.io.dataout
 
     io.cpuout.data      := cache.io.dataout
     io.cpuout.valid     := valid
@@ -125,11 +123,12 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
     cache.io.addr       := io.cpuin.addr(size-1, 0)
     cache.io.tag        := io.cpuin.addr(addr_len-1, size)
     cache.io.datain     := io.memin.data
-    cache.io.we         := we
+    cache.io.we         := io.memin.valid
+    //cache.io.we         := we
 
-    when (sq) {
+    when (true.B) {
         when (state === idle) {
-                we := false.B
+                //we := false.B
                 when(hit) {
                     busy := false.B
                     //io.cpuout.valid := false.B
@@ -151,13 +150,13 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
                     state := State.idle
                 }
                 .otherwise {
-                    we := true.B
+                    //we := true.B
                     state := State.allocate
                 }
 
             }
             .otherwise {
-                we := true.B
+                //we := true.B
                 state := allocate
             }
 
@@ -173,11 +172,15 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
 
             }
             when(io.memin.valid) {
+                we := true.B
+                req := false.B
                 //cache.io.datain := io.memin.data
                 //cache.io.tag    := io.cpuin.addr(addr_len-1, size)
-                req := false.B                                              // there might be some issue due to delay but should not be
+                //////req := false.B            //this causes erronous behav with current logic of the TB
+                //state := State.compare                            // there might be some issue due to delay but should not be
             }
-            when(io.cpuout.data === io.memin.data){
+            when(cache.io.dataout === io.memin.data){
+                //req := false.B //this breaks everything
                 we := false.B
                 state := State.compare
             }
@@ -190,16 +193,13 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
 /*
 switch (state) {
         is (idle) {
-            println("######################## iddling")
             we := false.B
             when(hit) {
-                println("######################## hit clear")
                 busy := false.B
                 //io.cpuout.valid := false.B
                 hit := false.B
             }
             when(io.cpuin.valid) {                     //this might happen too soon or not not sure
-                println("######################## cpu valid")
                 busy := true.B
                 valid := false.B
                 //io.cpuout.hit := false.B
@@ -207,24 +207,20 @@ switch (state) {
             }
         }
         is (compare) {
-            println("######################## comparison")
             when(cache.io.valid) {        // if(cache.io.dataout.tail(len-1).asBool().litToBoolean) {
                 when(io.cpuin.addr(addr_len-1, size) === cache.io.tagout) {        //check if the tag is same in memory and cpu addr  this may have issue with LSB MSB type thing
                     //io.cpuout.data := cache.io.dataout
                     valid := true.B
                     hit := true.B
                     state := State.idle
-                    println("######################## its a certified hood classic")
                 }
                 .otherwise {
-                    println("######################## wrong tag in memory")
                     we := true.B
                     state := State.allocate
                 }
 
             }
             .otherwise {
-                println("######################## not valid data in memory")
                 we := true.B
                 state := allocate
             }
@@ -234,7 +230,6 @@ switch (state) {
         is (allocate){
             when(io.memin.ready) {
                 req := true.B
-                println("######################## mem ready")
                 //io.memout.addr := io.cpuin.addr                                           //might want to check that this is still valid
                 //io.memout.rw := io.cpuin.rw
                 //when(io.cpuin.rw) {}
@@ -242,13 +237,11 @@ switch (state) {
 
             }
             when(io.memin.valid) {
-                println("######################## mem valid")
                 //cache.io.datain := io.memin.data
                 //cache.io.tag    := io.cpuin.addr(addr_len-1, size)
                 req := false.B                                              // there might be some issue due to delay but should not be
             }
             when(io.cpuout.data === io.memin.data){
-                println("######################## write complete")
                 we := false.B
                 state := State.compare
             }

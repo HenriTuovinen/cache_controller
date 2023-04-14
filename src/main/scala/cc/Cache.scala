@@ -19,15 +19,15 @@ class Cache(addr_len: Int, tag_len: Int, data_len: Int) extends  Module {
         val tagout  = Output(UInt(tag_len.W))
         val valid   = Output(Bool())
     })
-    val wr  = Wire(UInt((addr_len + tag_len + 1).W))
-    val mem = Mem(math.pow(2, addr_len).toInt, UInt((addr_len + tag_len + 1).W)) 
+    val wr  = Wire(UInt((data_len + tag_len + 1).W))
+    val mem = Mem(math.pow(2, addr_len).toInt, UInt((data_len + tag_len + 1).W)) 
 
-    val ore = RegInit(0.U(data_len.W))
+    //val ore = RegInit(0.U(data_len.W))
 
     wr :=  mem.read(io.addr)
 
-    ore  := wr(addr_len + tag_len, tag_len+1)
-    io.dataout  := ore
+    //ore  := wr(addr_len + tag_len, tag_len+1)
+    io.dataout  := wr(data_len + tag_len, tag_len+1)
     io.tagout   := wr(tag_len, 1)
     io.valid    := wr(0)
   

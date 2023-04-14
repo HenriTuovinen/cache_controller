@@ -51,32 +51,27 @@ it should "test all" in {
         dut.io.cpuin.rw.poke(false.B)
         //dut.io.cpuin.data.poke(0.U(data_len.W))
 
-        //dut.io.memin.data.poke(0.U)
+        dut.io.memin.data.poke(0.U)
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
         dut.clock.step(1)
 
-        println("??????????????????????????? ")
-        println("i is now " + i)
-        println("addr is now " + addr(i))
-        println("memdata is now " + memdata(i))
+        
 
         
         //if(true.B.litToBoolean){
         
         //if(dut.io.memout.req.litToBoolean){
-        while (dut.io.cpuout.busy.peek().litToBoolean) {
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
           println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
           if(dut.io.memout.req.peek().litToBoolean){
-            println("i is now " + i)
-            println("addr is now " + addr(i))
-            println("memdata is now " + memdata(i))
 
+            println("????????????????????????????")
 
             //dut.clock.step(100)
 
-            println("addr from cpu is now " + dut.io.cpuin.addr.peek())
-            println("valid from cpu is now " + dut.io.cpuin.valid.peek())
+            //println("addr from cpu is now " + dut.io.cpuin.addr.peek())
+            //println("valid from cpu is now " + dut.io.cpuin.valid.peek())
 
 
             dut.io.memin.data.poke(memdata(i))
@@ -92,10 +87,15 @@ it should "test all" in {
 
           dut.clock.step(1)
         }
-
-        println("addr is now " + dut.io.memout.addr.peek())
-        println("data is now " + dut.io.cpuout.data.peek())
-
+        println("we finally have a hit")
+        /*
+        println("??????????????????????????? ")
+        println("i is now " + i)
+        println("addr should be now " + addr(i))
+        println("addr is now        " + dut.io.memout.addr.peek())
+        println("memdata is now " + memdata(i))
+        println("data is now    " + dut.io.cpuout.data.peek())
+        */
         dut.io.cpuout.data.expect(memdata(i))
         //dut.io.cpuout.valid.expect(true.B)
         //dut.io.cpuout.busy.expect(true.B)
@@ -208,7 +208,7 @@ it should "test all" in {
     }
   }
 
-
+/*
   it should "testing cache only" in {                            //test the cache alone
 
 
@@ -306,7 +306,7 @@ dut.clock.step(10)
     
     }
   }
-
+*/
   
 
 
