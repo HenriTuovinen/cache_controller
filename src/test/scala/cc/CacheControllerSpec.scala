@@ -12,6 +12,7 @@ import org.scalatest.matchers.should.Matchers
 //import chisel3.experimental.BundleLiterals._
 
 import scala.math
+import scala.util.Random
 
 
 /**
@@ -37,19 +38,20 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 // or this needs some additional steps
 
 
-it should "test all" in {
-    test(new CacheController(size, addr_len, data_len)) {dut =>
-      val numTests : Int = 10
-      val addr = Seq.tabulate(numTests){i=>scala.util.Random.nextInt(math.pow(2, addr_len).toInt-1).U(addr_len.W)}
-      val memdata = Seq.tabulate(numTests){i=>scala.util.Random.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
-      val writedata = Seq.tabulate(numTests){i=>scala.util.Random.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
+it should "testAll" in {
+    test(new CacheController(size, addr_len, data_len)).withAnnotations (Seq( WriteVcdAnnotation )) {dut =>//. withAnnotations (Seq( WriteVcdAnnotation ))
+      val randgen = new Random(777)
+      val numTests : Int  = 10
+      val addr            = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, addr_len).toInt-1).U(addr_len.W)}
+      val memdata         = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
+      val writedata       = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       
       
       for (i <- 0 until numTests) {
         dut.io.cpuin.addr.poke(addr(i))
         dut.io.cpuin.valid.poke(true.B)
         dut.io.cpuin.rw.poke(false.B)
-        //dut.io.cpuin.data.poke(0.U(data_len.W))
+        dut.io.cpuin.data.poke(0.U(data_len.W))
 
         dut.io.memin.data.poke(0.U)
         dut.io.memin.valid.poke(false.B)
@@ -63,10 +65,10 @@ it should "test all" in {
         
         //if(dut.io.memout.req.litToBoolean){
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
-          println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+          //println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
           if(dut.io.memout.req.peek().litToBoolean){
 
-            println("????????????????????????????")
+            //println("????????????????????????????")
 
             //dut.clock.step(100)
 
@@ -87,7 +89,8 @@ it should "test all" in {
 
           dut.clock.step(1)
         }
-        println("we finally have a hit")
+        //println("we finally have a hit")
+        println("addr is now        " + dut.io.memout.addr.peek().litValue.toInt.toBinaryString.slice(0,size))
         /*
         println("??????????????????????????? ")
         println("i is now " + i)
@@ -106,16 +109,101 @@ it should "test all" in {
         //dut.io.memout.rw.expect(false.B)
         //dut.io.memout.data.expect(0.U)
 
+        dut.clock.step(1)
+        /*
+        //println("cheking if that shit is still in memory")
+
+        dut.io.cpuin.addr.poke(addr(i))
+        dut.io.cpuin.valid.poke(true.B)
+        dut.io.cpuin.rw.poke(false.B)
+        //dut.io.cpuin.data.poke(0.U(data_len.W))
+
+        dut.io.memin.data.poke(0.U)
+        dut.io.memin.valid.poke(false.B)
+        dut.io.memin.ready.poke(true.B)
+        dut.clock.step(1)
+
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
+          //println("this is a minor issue maybe")
+          if(dut.io.memout.req.peek().litToBoolean){
+            println("We should not be here")
+
+            dut.io.memin.data.poke(memdata(i))
+            dut.io.memin.ready.poke(false.B)
+            dut.io.memin.valid.poke(true.B)
+          }
+
+
+          dut.clock.step(1)
+        }
+        */
+
+        
+
+
+
       }
+      dut.clock.step(10)
+
+      for (i <- 0 until numTests) {
+          
+        println("lets go around another time and see that the data that should stay in memory does stay there")
+
+        dut.io.cpuin.addr.poke(addr(i))
+        dut.io.cpuin.valid.poke(true.B)
+        dut.io.cpuin.rw.poke(false.B)
+        dut.io.cpuin.data.poke(0.U(data_len.W))
+
+        dut.io.memin.data.poke(0.U)
+        dut.io.memin.valid.poke(false.B)
+        dut.io.memin.ready.poke(true.B)
+
+        dut.clock.step(1)
+
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
+            
+          //println("!########################!!##!#!##!#!#!#!#!#")
+          if(dut.io.memout.req.peek().litToBoolean){
+
+            println("we should only be here if there are two same adresses")
+            println("addr is now        " + dut.io.memout.addr.peek().litValue.toInt.toBinaryString.slice(0,size))
+
+            //dut.clock.step(100)
+
+            //println("addr from cpu is now " + dut.io.cpuin.addr.peek())
+            //println("valid from cpu is now " + dut.io.cpuin.valid.peek())
+
+
+            dut.io.memin.data.poke(memdata(i))
+            dut.io.memin.ready.poke(false.B)
+            dut.io.memin.valid.poke(true.B)
+
+
+            //dut.clock.step(100)
+
+
+          }
+
+
+          dut.clock.step(1)
+        }
+
+
+      }
+
+
+
+
+
 
 
 
       /*
       val addr = Wire(Vec(numTests, UInt(addr_len.W)))      //mignth need Wire() wrapper
       for (i <- 0 until addr.length) {
-        addr(i) := scala.util.Random.nextInt(math.pow(2, addr_len).toInt-1).U
+        addr(i) := radngen.nextInt(math.pow(2, addr_len).toInt-1).U
         //addr(i) := 2.U(addr_len.W)
-        //scala.util.Random.nextBytes(addr_len)
+        //radngen.nextBytes(addr_len)
       }
       */
       //val io = IO(chiselTypeOf(dut.io))
@@ -123,13 +211,13 @@ it should "test all" in {
       /*
       val memdata = Wire(Vec(numTests, UInt(data_len.W)))
       for (i <- 0 until memdata.length) {
-        memdata(i) := scala.util.Random.nextInt(math.pow(2, data_len).toInt-1).U
+        memdata(i) := radngen.nextInt(math.pow(2, data_len).toInt-1).U
       }
       */
       /*
       val writedata = Wire(Vec(numTests, UInt(data_len.W)))           //for testing writing data from cpu
       for (i <- 0 until writedata.length) {
-        writedata(i) := scala.util.Random.nextInt(math.pow(2, data_len).toInt-1).U
+        writedata(i) := radngen.nextInt(math.pow(2, data_len).toInt-1).U
       }
       */
 

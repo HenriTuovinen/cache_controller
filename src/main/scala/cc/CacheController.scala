@@ -43,7 +43,7 @@ class CcMemoryOutputBundle(val addr_len: Int, val data_len: Int) extends Bundle{
 
 
 
-class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
+class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends Module{
     require(addr_len >= 0)
     require(data_len >= 0)
     val io = IO(new Bundle {
@@ -83,7 +83,7 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
     val outreg = RegInit(0.U(data_len.W))
 
 
-
+    /*
     def counter(max: UInt) = {
         val x = RegInit(0.asUInt(max.getWidth.W))
         x := Mux(x === max, 0.U, x + 1.U)
@@ -101,7 +101,9 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
     def squareWave(period: UInt) = toggle(pulse(period >> 1))
 
     val sq = squareWave(2.U)
+    */
 
+    
     //vecad := io.cpuin.addr
     //daddr.memadr := io.cpuin.addr((size - 1), 0)
     //daddr.tag := io.cpuin.addr((addr_len-1), size)
@@ -123,8 +125,8 @@ class CacheController(size: Int, addr_len: Int, data_len: Int) extends Module{
     cache.io.addr       := io.cpuin.addr(size-1, 0)
     cache.io.tag        := io.cpuin.addr(addr_len-1, size)
     cache.io.datain     := io.memin.data
-    cache.io.we         := io.memin.valid
-    //cache.io.we         := we
+    //cache.io.we         := io.memin.valid
+    cache.io.we         := we
 
     when (true.B) {
         when (state === idle) {

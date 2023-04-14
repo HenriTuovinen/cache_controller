@@ -5,6 +5,7 @@ package cc
 import chisel3._
 import scala.math
 import chisel3.util._
+import java.util.UUID
 
 
 
@@ -23,6 +24,13 @@ class Cache(addr_len: Int, tag_len: Int, data_len: Int) extends  Module {
     val mem = Mem(math.pow(2, addr_len).toInt, UInt((data_len + tag_len + 1).W)) 
 
     //val ore = RegInit(0.U(data_len.W))
+
+    //Uncomment the following to view what happens in memory with wires
+
+    val READ = Seq.tabulate(math.pow(2, addr_len).toInt){i => Wire(UInt((data_len + tag_len + 1).W))}
+    for(i <- 0 until READ.length){
+      READ(i) := mem.read(i.U)
+    }
 
     wr :=  mem.read(io.addr)
 
