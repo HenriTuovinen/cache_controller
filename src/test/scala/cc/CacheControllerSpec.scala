@@ -15,17 +15,6 @@ import scala.math
 import scala.util.Random
 
 
-/**
-  * This is a trivial example of how to run this Specification
-  * From within sbt use:
-  * {{{
-  * testOnly gcd.GcdDecoupledTester
-  * }}}
-  * From a terminal shell use:
-  * {{{
-  * sbt 'testOnly gcd.GcdDecoupledTester'
-  * }}}
-  */
 class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
   val size      : Int = 4
   val addr_len  : Int = 64
@@ -34,11 +23,9 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
   behavior of "CacheController"
 
-// the issue might be with cache being instantiated inside the cachecontroller and this is not supported by this test
-// or this needs some additional steps
 
 
-it should "testAll" in {
+  it should "testAll" in {
     test(new CacheController(size, addr_len, data_len)).withAnnotations (Seq( WriteVcdAnnotation )) {dut =>//. withAnnotations (Seq( WriteVcdAnnotation ))
       val randgen = new Random(777)
       val numTests : Int  = 10
@@ -75,6 +62,8 @@ it should "testAll" in {
             //println("addr from cpu is now " + dut.io.cpuin.addr.peek())
             //println("valid from cpu is now " + dut.io.cpuin.valid.peek())
 
+            //maybe need some logic os that valid is slow only for one cycle
+            dut.clock.step(4)
 
             dut.io.memin.data.poke(memdata(i))
             dut.io.memin.ready.poke(false.B)
@@ -144,10 +133,11 @@ it should "testAll" in {
 
       }
       dut.clock.step(10)
+      println("lets go around another time and see that the data that should stay in memory does stay there")
 
       for (i <- 0 until numTests) {
           
-        println("lets go around another time and see that the data that should stay in memory does stay there")
+        //println("lets go around another time and see that the data that should stay in memory does stay there")
 
         dut.io.cpuin.addr.poke(addr(i))
         dut.io.cpuin.valid.poke(true.B)
@@ -157,6 +147,7 @@ it should "testAll" in {
         dut.io.memin.data.poke(0.U)
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
+        println("addr that was input was " + addr(i).litValue.toInt.toBinaryString.slice(0,size))
 
         dut.clock.step(1)
 
@@ -166,7 +157,7 @@ it should "testAll" in {
           if(dut.io.memout.req.peek().litToBoolean){
 
             println("we should only be here if there are two same adresses")
-            println("addr is now        " + dut.io.memout.addr.peek().litValue.toInt.toBinaryString.slice(0,size))
+            println("addr is now             " + dut.io.memout.addr.peek().litValue.toInt.toBinaryString.slice(0,size))
 
             //dut.clock.step(100)
 
@@ -187,215 +178,14 @@ it should "testAll" in {
 
           dut.clock.step(1)
         }
-
-
       }
-
-
-
-
-
-
-
-
-      /*
-      val addr = Wire(Vec(numTests, UInt(addr_len.W)))      //mignth need Wire() wrapper
-      for (i <- 0 until addr.length) {
-        addr(i) := radngen.nextInt(math.pow(2, addr_len).toInt-1).U
-        //addr(i) := 2.U(addr_len.W)
-        //radngen.nextBytes(addr_len)
-      }
-      */
-      //val io = IO(chiselTypeOf(dut.io))
-      //dut.io <> io
-      /*
-      val memdata = Wire(Vec(numTests, UInt(data_len.W)))
-      for (i <- 0 until memdata.length) {
-        memdata(i) := radngen.nextInt(math.pow(2, data_len).toInt-1).U
-      }
-      */
-      /*
-      val writedata = Wire(Vec(numTests, UInt(data_len.W)))           //for testing writing data from cpu
-      for (i <- 0 until writedata.length) {
-        writedata(i) := radngen.nextInt(math.pow(2, data_len).toInt-1).U
-      }
-      */
-
-
-      /*
-      addr.zip(memdata).foreach { case (a, d) =>
-        dut.io.cpuin.addr.poke(a)
-        dut.io.cpuin.valid.poke(true.B)
-        dut.io.cpuin.rw.poke(false.B)
-        dut.io.cpuin.data.poke(0.U(data_len.W))
-
-        dut.io.memin.data.poke(0.U)
-        dut.io.memin.valid.poke(false.B)
-        dut.io.memin.ready.poke(true.B)
-        
-
-        when(dut.io.memout.req){
-          dut.clock.step(4)
-          dut.io.memin.data.poke(d)
-          dut.io.memin.ready.poke(false.B)
-          dut.io.memin.valid.poke(true.B)
-        }
-
-        dut.io.cpuout.data.expect(d)
-        dut.io.cpuout.valid.expect(true.B)
-        dut.io.cpuout.busy.expect(true.B)
-        dut.io.cpuout.hit.expect(true.B)
-
-        dut.io.memout.addr.expect(a)
-        dut.io.memout.req.expect(false.B)
-        dut.io.memout.rw.expect(false.B)
-        dut.io.memout.data.expect(0.U)
-
-      }
-      */
-
-
-      /*
-      for {
-        a <- addr
-        d <- memdata
-      } {
-        
-        dut.io.cpuin.addr.poke(a)
-        dut.io.cpuin.valid.poke(true.B)
-        dut.io.cpuin.rw.poke(false.B)
-        dut.io.cpuin.data.poke(0.U(data_len.W))
-
-        dut.io.memin.data.poke(0.U)
-        dut.io.memin.valid.poke(false.B)
-        dut.io.memin.ready.poke(true.B)
-        
-
-        when(dut.io.memout.req){
-          dut.clock.step(4)
-          dut.io.memin.data.poke(d)
-          dut.io.memin.ready.poke(false.B)
-          dut.io.memin.valid.poke(true.B)
-        }
-
-        dut.io.cpuout.data.expect(d)
-        dut.io.cpuout.valid.expect(true.B)
-        dut.io.cpuout.busy.expect(true.B)
-        dut.io.cpuout.hit.expect(true.B)
-
-        dut.io.memout.addr.expect(a)
-        dut.io.memout.req.expect(false.B)
-        dut.io.memout.rw.expect(false.B)
-        dut.io.memout.data.expect(0.U)
-        
-
-
-      }
-      */
-
-    }
-  }
-
-/*
-  it should "testing cache only" in {                            //test the cache alone
-
-
-
-    test(new Cache(4,1,3)) { dut =>
-
-
-      
-
-      //val buffSource = io.Source.fromFile("/resources/")
-      //dut.io.addr.peek()
-      //dut.io.datain.peek()
-      
-      //dut.io.we.peek()
-
-      //println("before input" + dut.io.dataout.peek().litValue)
-      //printf("test")
-
-      dut.clock.step(10)
-
-      dut.io.addr.poke(3.U)
-      dut.io.tag.poke(1.U) 
-      dut.io.datain.poke(2.U)
-      dut.io.we.poke(true.B)
-
-
-      dut.clock.step(10)
-
-      //println("after input" + dut.io.dataout.peek().litValue)
-
-      dut.io.dataout.expect(2.U)
-      dut.io.tagout.expect(1.U)
-      dut.io.valid.expect(true.B)
-    }
-  }
-
-
-  it should "just peekking into controller" in {                            //test the cache alone
-    test(new CacheController(2,3,2)) { dut =>
-      //val buffSource = io.Source.fromFile("/resources/")
-      
     }
   }
 
 
 
 
-  it should "do basic operation with peek poke" in {
-    test(new CacheController(2,3,2)) { dut =>
-      //val buffSource = io.Source.fromFile("/resources/")
-      dut.io.cpuout.data.peek()
-      dut.io.cpuout.valid.peek()
-      dut.io.cpuout.busy.peek()
-      dut.io.cpuout.hit.peek()
 
-      dut.io.memout.addr.peek()
-      dut.io.memout.req.peek()
-      dut.io.memout.rw.peek()
-      dut.io.memout.data.peek()
-
-
-      dut.io.cpuin.addr.poke("b010".U)
-      dut.io.cpuin.valid.poke(true.B)
-      dut.io.cpuin.rw.poke(false.B)
-      dut.io.cpuin.data.poke("b11".U)
-
-      dut.io.memin.data.poke("b01".U)
-      dut.io.memin.valid.poke(true.B)
-      dut.io.memin.ready.poke(true.B)
-
-      dut.clock.step(10)
-      dut.clock.step(10)
-
-      println(dut.io.cpuout.data.peek().litValue)
-      println(dut.io.cpuout.valid.peek().litValue)
-      println(dut.io.cpuout.busy.peek().litValue)
-      println(dut.io.cpuout.hit.peek().litValue)    
-
-      println(dut.io.memout.addr.peek().litValue)
-      println(dut.io.memout.req.peek().litValue)
-      println(dut.io.memout.rw.peek().litValue)
-      println(dut.io.memout.data.peek().litValue)
-            
-dut.clock.step(10)
-
-      dut.io.cpuout.data.expect("b01".U)
-      dut.io.cpuout.valid.expect(false.B)
-      dut.io.cpuout.busy.expect(true.B)
-      dut.io.cpuout.hit.expect(false.B)
-
-      dut.io.memout.addr.expect("b010".U)
-      dut.io.memout.req.expect(false.B)
-      dut.io.memout.rw.expect(false.B)
-      dut.io.memout.data.expect("b11".U)
-    
-    }
-  }
-*/
-  
 
 
 }
