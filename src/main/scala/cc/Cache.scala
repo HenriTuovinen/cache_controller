@@ -39,6 +39,6 @@ class Cache(index_len: Int, tag_len: Int, data_len: Int) extends  Module {
   
 
     when(io.we) {
-      mem.write(io.index, Cat(io.datain, io.tag, true.B))
+      mem.write(io.index, io.datain##(io.tag##(true.B)))//Cat(io.datain, io.tag, true.B))
     }
 }

@@ -94,6 +94,8 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
 
     //cache.io.index := daddr
 
+    //outreg := cache.io.dataout
+
     outreg := cache.io.dataout
 
     io.cpuout.data      := cache.io.dataout
@@ -104,27 +106,49 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
     io.memout.addr      := io.cpuin.addr
     io.memout.req       := req
     io.memout.rw        := io.cpuin.rw
-    io.memout.data      := io.cpuin.data
+    io.memout.data      := outreg
 
     cache.io.index      := io.cpuin.addr(size-1, 0)
     cache.io.tag        := io.cpuin.addr(addr_len-1, size)
-    cache.io.datain     := io.memin.data
+    when(io.cpuin.rw){
+        cache.io.datain     := io.cpuin.data
+    }
+    .otherwise{
+        cache.io.datain     := io.memin.data
+    }
     //cache.io.we         := io.memin.valid
     cache.io.we         := we
 
+
+
+
+
+
     when (state === idle) {
-            //we := false.B
-            when(hit) {
-                busy := false.B
-                hit := false.B
-            }
-            when(io.cpuin.valid) {                     //this might happen too soon or not not sure
-                busy := true.B
-                valid := false.B
-                //io.cpuout.hit := false.B
-                state := compare
-            }
+        //we := false.B
+        when(hit) {
+            busy := false.B
+            hit := false.B
+            wrback := false.B
+        }
+        when(io.cpuin.valid) {                     //this might happen too soon or not not sure
+            busy := true.B
+            valid := false.B
+            //io.cpuout.hit := false.B
+            state := compare
+        }
     }
+
+
+
+
+
+
+
+
+
+
+
 
 
     .elsewhen (state === compare) {
@@ -138,8 +162,8 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
                 }
                 .otherwise{
                     wrback := false.B
-                    hit := true.B
-                    //state := write
+                    //hit := true.B
+                    state := allocate
 
                 }
             }
@@ -153,11 +177,13 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
             }
 
         }
-        .elsewhen(io.cpuin.rw){                         //we are writing
+        /*
+        .elsewhen(io.cpuin.rw){
             //maybe some walue that signifies no need to write back
             wrback := false.B
             //state := write
         }
+        */
         .otherwise {
             state := allocate
         }
@@ -166,29 +192,59 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
 
 
     .elsewhen (state === write) {               //write-back to memory
-
-
+        when(io.memin.ready) {
+            //we prolly dont need to wait the memory to go ready
+            req := true.B
+            //outreg := cache.io.dataout
+            state := allocate
+            /*
+            when(req){
+                state := allocate
+            }
+            .otherwise{
+                req := true.B
+                outreg := cache.io.dataout
+            }
+            */
+        }     
     }
 
 
     .elsewhen (state === allocate){
-        when(io.memin.ready) {
-            req := true.B
-
-            //when(io.cpuin.rw) {}
-
-        }
-        when(io.memin.valid) {
+        when(io.cpuin.rw){
+            //cache.io.datain     := io.cpuin.data //this could be moved out of the state loop and just determined with mux by rw
             we := true.B
-            req := false.B
-            //////req := false.B            //this causes erronous behav with current logic of the TB
-            //state := compare                            // there might be some issue due to delay but should not be
+            when(cache.io.dataout === io.cpuin.data){       //this wastes alot of comparators
+                //req := false.B //this breaks everything
+                we := false.B
+                //cache.io.datain     := io.memin.data
+                hit := true.B
+                state := idle
+            }
         }
-        when(cache.io.dataout === io.memin.data){
-            //req := false.B //this breaks everything
-            we := false.B
-            state := compare
+        .otherwise{
+            
+            when(io.memin.ready) {
+                req := true.B
+
+                //when(io.cpuin.rw) {}
+
+            }
+            .elsewhen(io.memin.valid) {
+                we := true.B
+                req := false.B
+                //////req := false.B            //this causes erronous behav with current logic of the TB
+                //state := compare                            // there might be some issue due to delay but should not be
+            }
+            when(cache.io.dataout === io.memin.data){
+                //req := false.B //this breaks everything
+                we := false.B
+                state := compare
+            }
         }
+
+
+       
     }        
 
 

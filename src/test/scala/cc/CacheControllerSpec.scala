@@ -13,6 +13,7 @@ import org.scalatest.matchers.should.Matchers
 
 import scala.math
 import scala.util.Random
+import os.truncate
 
 
 class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
@@ -22,6 +23,142 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
 
   behavior of "CacheController"
+
+
+
+
+ it should "testWrite" in {
+    test(new CacheController(size, addr_len, data_len)).withAnnotations (Seq( WriteVcdAnnotation )) {dut =>//. withAnnotations (Seq( WriteVcdAnnotation ))
+      val randgen = new Random(777)
+      val numTests : Int  = 10
+      val addr            = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, addr_len).toInt-1).U(addr_len.W)}
+      val memdata         = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
+      val writedata       = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
+      
+      
+      for (i <- 0 until numTests) {
+        dut.io.cpuin.addr.poke(addr(i))
+        dut.io.cpuin.valid.poke(true.B)
+        dut.io.cpuin.rw.poke(true.B)
+        dut.io.cpuin.data.poke(writedata(i))
+
+        dut.io.memin.data.poke(0.U)
+        dut.io.memin.valid.poke(false.B)
+        dut.io.memin.ready.poke(true.B)
+        dut.clock.step(1)
+
+        
+
+
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
+          //println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+          if(dut.io.memout.req.peek().litToBoolean){
+            dut.io.memin.ready.poke(false.B)
+
+            dut.clock.step(4)
+
+            //dut.io.memout.data.expect(writedata(i))
+            //dut.io.memin.ready.poke(false.B)
+            dut.io.memin.valid.poke(true.B)
+
+
+
+
+
+          }
+
+
+          dut.clock.step(1)
+        }
+
+
+
+        println("second run with same addr        " + dut.io.memout.addr.peek().litValue.toInt.toBinaryString.slice(0,size))
+
+        //dut.io.cpuout.data.expect(memdata(i))
+
+
+        //dut.io.memout.addr.expect(addr(i))
+
+
+        dut.clock.step(1)
+
+
+
+
+        dut.io.cpuin.addr.poke(addr(i))
+        dut.io.cpuin.valid.poke(true.B)
+        dut.io.cpuin.rw.poke(true.B)
+        dut.io.cpuin.data.poke(memdata(i))
+
+        dut.io.memin.data.poke(0.U)
+        dut.io.memin.valid.poke(false.B)
+        dut.io.memin.ready.poke(true.B)
+        dut.clock.step(1)
+
+        
+
+
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
+          //println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+          if(dut.io.memout.req.peek().litToBoolean){
+            dut.io.memin.ready.poke(false.B)
+
+            dut.clock.step(4)
+
+            //dut.io.memout.data.expect(memdata(i))
+            //dut.io.memin.ready.poke(false.B)
+            dut.io.memin.valid.poke(true.B)
+
+
+
+
+
+          }
+
+
+          dut.clock.step(1)
+        }
+
+
+
+        println("addr is now        " + dut.io.memout.addr.peek().litValue.toInt.toBinaryString.slice(0,size))
+
+        //dut.io.cpuout.data.expect(memdata(i))
+
+
+        //dut.io.memout.addr.expect(addr(i))
+
+
+        dut.clock.step(1)
+        
+
+      }
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -54,7 +191,7 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
           //println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
           if(dut.io.memout.req.peek().litToBoolean){
-
+            dut.io.memin.ready.poke(false.B)
             //println("????????????????????????????")
 
             //dut.clock.step(100)
@@ -66,7 +203,7 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
             dut.clock.step(4)
 
             dut.io.memin.data.poke(memdata(i))
-            dut.io.memin.ready.poke(false.B)
+            //dut.io.memin.ready.poke(false.B)
             dut.io.memin.valid.poke(true.B)
 
 
@@ -155,18 +292,18 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
             
           //println("!########################!!##!#!##!#!#!#!#!#")
           if(dut.io.memout.req.peek().litToBoolean){
-
+            dut.io.memin.ready.poke(false.B)
             println("we should only be here if there are two same adresses")
             println("addr is now             " + dut.io.memout.addr.peek().litValue.toInt.toBinaryString.slice(0,size))
 
-            //dut.clock.step(100)
+            dut.clock.step(4)
 
             //println("addr from cpu is now " + dut.io.cpuin.addr.peek())
             //println("valid from cpu is now " + dut.io.cpuin.valid.peek())
 
 
             dut.io.memin.data.poke(memdata(i))
-            dut.io.memin.ready.poke(false.B)
+
             dut.io.memin.valid.poke(true.B)
 
 
@@ -181,6 +318,9 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
       }
     }
   }
+
+
+  
 
 
 
