@@ -210,20 +210,20 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
     }
 
 
-    .elsewhen (state === allocate){
+    .elsewhen (state === allocate){                     //this takes 3 cycles
         when(io.cpuin.rw){
             //cache.io.datain     := io.cpuin.data //this could be moved out of the state loop and just determined with mux by rw
             we := true.B
             when(cache.io.dataout === io.cpuin.data){       //this wastes alot of comparators
-                //req := false.B //this breaks everything
+                req := false.B //this is critical for write
                 we := false.B
                 //cache.io.datain     := io.memin.data
                 hit := true.B
                 state := idle
             }
         }
-        .otherwise{
-            
+        .otherwise{                                         //could these be combined
+
             when(io.memin.ready) {
                 req := true.B
 
