@@ -76,13 +76,16 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
 
     val we      = RegInit(false.B)
 
-    val wrback  = RegInit(false.B)
+    //val wrback  = RegInit(false.B)
 
     val cache = Module(new Cache(size, addr_len - size, data_len))
 
 
 
     val outreg = RegInit(0.U(data_len.W))
+
+
+    val waitOneCyc = RegInit(false.B)    //register for waiting one cycle for cache data to become readable
 
 
    
@@ -94,9 +97,10 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
 
     //cache.io.index := daddr
 
-    //outreg := cache.io.dataout
 
-    outreg := cache.io.dataout
+
+    
+    //outreg := cache.io.dataout
 
     io.cpuout.data      := cache.io.dataout
     io.cpuout.valid     := valid
@@ -125,11 +129,12 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
 
 
     when (state === idle) {
-        //we := false.B
+        we := false.B
         when(hit) {
             busy := false.B
             hit := false.B
-            wrback := false.B
+            waitOneCyc := false.B
+            //wrback := false.B
         }
         when(io.cpuin.valid) {                     //this might happen too soon or not not sure
             busy := true.B
@@ -161,7 +166,7 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
                     state := idle
                 }
                 .otherwise{
-                    wrback := false.B
+                    //wrback := false.B
                     //hit := true.B
                     state := allocate
 
@@ -169,7 +174,8 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
             }
             .elsewhen(io.cpuin.rw){                         //we are writing
                 //now we need to write back
-                wrback := true.B
+                outreg := cache.io.dataout
+                //wrback := true.B
                 state := write
             }
             .otherwise {
@@ -180,7 +186,7 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
         /*
         .elsewhen(io.cpuin.rw){
             //maybe some walue that signifies no need to write back
-            wrback := false.B
+            //wrback := false.B
             //state := write
         }
         */
@@ -214,14 +220,25 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
         when(io.cpuin.rw){
             //cache.io.datain     := io.cpuin.data //this could be moved out of the state loop and just determined with mux by rw
             we := true.B
+            req := false.B //this is critical for write
+            //cache.io.datain     := io.memin.data
+            hit := true.B
+            state := idle
+            /*
             when(cache.io.dataout === io.cpuin.data){       //this wastes alot of comparators
+            //when(waitOneCyc){
                 req := false.B //this is critical for write
                 we := false.B
                 //cache.io.datain     := io.memin.data
                 hit := true.B
                 state := idle
             }
+            .otherwise{
+                waitOneCyc := true.B
+            }
+            */
         }
+
         .otherwise{                                         //could these be combined
 
             when(io.memin.ready) {
@@ -230,17 +247,22 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
                 //when(io.cpuin.rw) {}
 
             }
-            .elsewhen(io.memin.valid) {
+            when(io.memin.valid) {  //elsewhen was here
                 we := true.B
                 req := false.B
                 //////req := false.B            //this causes erronous behav with current logic of the TB
                 //state := compare                            // there might be some issue due to delay but should not be
+                when(waitOneCyc){
+                    //req := false.B //this breaks everything
+                    we := false.B
+                    state := compare
+                }
+                .otherwise{
+                    waitOneCyc := true.B
+                }
             }
-            when(cache.io.dataout === io.memin.data){
-                //req := false.B //this breaks everything
-                we := false.B
-                state := compare
-            }
+            //when(cache.io.dataout === io.memin.data){
+            
         }
 
 

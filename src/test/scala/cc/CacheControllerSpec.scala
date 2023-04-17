@@ -94,7 +94,7 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.memin.data.poke(0.U)
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
-        dut.clock.step(1)
+        //dut.clock.step(1)
 
         
 
@@ -189,10 +189,10 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
         
         //if(dut.io.memout.req.litToBoolean){
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
-          //println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+          println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
           if(dut.io.memout.req.peek().litToBoolean){
             dut.io.memin.ready.poke(false.B)
-            //println("????????????????????????????")
+            println("????????????????????????????")
 
             //dut.clock.step(100)
 
