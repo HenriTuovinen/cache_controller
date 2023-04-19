@@ -8,7 +8,7 @@ import chisel3.util._
 
 
 
-class Cache(index_len: Int, tag_len: Int, data_len: Int) extends  Module {
+class Cache(index_len: Int, tag_len: Int, data_len: Int, debug: Bool = false.B) extends  Module {  //boolean debug
     val io = IO(new Bundle{
         val index   = Input(UInt(index_len.W))
         val tag     = Input(UInt(tag_len.W))
@@ -25,6 +25,9 @@ class Cache(index_len: Int, tag_len: Int, data_len: Int) extends  Module {
 
     //Uncomment the following to view what happens in memory with wires
     //*
+    when(debug){
+      
+    }
     val READ = Seq.tabulate(math.pow(2, index_len).toInt){i => Wire(UInt((data_len + tag_len + 1).W))}
     for(i <- 0 until READ.length){
       READ(i) := mem.read(i.U)

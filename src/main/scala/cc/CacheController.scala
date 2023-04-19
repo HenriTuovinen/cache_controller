@@ -12,7 +12,7 @@ object State extends ChiselEnum{                                   //enumeration
 }
 import State._
 
-
+//hit signal should only go high when we get a cache hit straigth away, not when the data is read from memory
 
 class CcCPUInputBundle(val addr_len: Int, val data_len: Int) extends Bundle{                // custom bundles for the ios
     val addr    = Input(UInt(addr_len.W))
@@ -136,7 +136,7 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
             waitOneCyc := false.B
             //wrback := false.B
         }
-        when(io.cpuin.valid) {                     //this might happen too soon or not not sure
+        when(io.cpuin.valid) {  //maybe use something else                   //this might happen too soon or not not sure
             busy := true.B
             valid := false.B
             //io.cpuout.hit := false.B
@@ -160,10 +160,21 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
         when(cache.io.valid) {        // if(cache.io.dataout.tail(len-1).asBool().litToBoolean) {
             when(io.cpuin.addr(addr_len-1, size) === cache.io.tagout) {        //check if the tag is same in memory and cpu addr  this may have issue with LSB MSB type thing
                 when(!io.cpuin.rw){
-                    //io.cpuout.data := cache.io.dataout
+                    /*
+                    when(valid){                        //this che
+                        state := idle
+                    }
+                    .otherwise{
+                        valid := true.B
+                        hit := true.B 
+                        state := idle
+                    }
+                    */
                     valid := true.B
-                    hit := true.B
+                    hit := true.B 
                     state := idle
+                    //io.cpuout.data := cache.io.dataout
+                    
                 }
                 .otherwise{
                     //wrback := false.B
