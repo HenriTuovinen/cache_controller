@@ -23,16 +23,14 @@ class Cache(index_len: Int, tag_len: Int, data_len: Int, debug: Bool = false.B) 
     val mem = Mem(math.pow(2, index_len).toInt, UInt((data_len + tag_len + 1).W)) 
 
 
-    //Uncomment the following to view what happens in memory with wires
-    //*
+    //setting debug input to true enables to view what happens in memory with wires
     when(debug){
-      
+      val READ = Seq.tabulate(math.pow(2, index_len).toInt){i => Wire(UInt((data_len + tag_len + 1).W))}
+      for(i <- 0 until READ.length){
+        READ(i) := mem.read(i.U)
+      }
     }
-    val READ = Seq.tabulate(math.pow(2, index_len).toInt){i => Wire(UInt((data_len + tag_len + 1).W))}
-    for(i <- 0 until READ.length){
-      READ(i) := mem.read(i.U)
-    }
-    //*/
+    
     wr :=  mem.read(io.index)
 
 

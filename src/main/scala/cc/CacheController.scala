@@ -44,6 +44,7 @@ class CcMemoryOutputBundle(val addr_len: Int, val data_len: Int) extends Bundle{
 
 
 class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends Module{
+    require(size >= 0)
     require(addr_len >= 0)
     require(data_len >= 0)
     val io = IO(new Bundle {
@@ -55,62 +56,50 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
 
 
 
-    //val memf = Wire(new memField(data_len,(addr_len - size)))
-    //val daddr = Wire(new dividedAddress(size, (addr_len - size)))
-    
-    
-    
-    
-    //val vecad = Wire(UInt(addr_len.W))
-
-
-    //val len = (data_len + (addr_len - size) + 1).toInt
-
-    val state   = RegInit(State.idle)
-    val valid   = RegInit(false.B)
+    val state   = RegInit(State.idle)           //state of the FSM
+    val valid   = RegInit(false.B)              //registers to keep the output values
     val busy    = RegInit(false.B)
     val hit     = RegInit(false.B)
-
     val req     = RegInit(false.B)
-    //val 
-
     val we      = RegInit(false.B)
 
-    //val wrback  = RegInit(false.B)
 
-    val cache = Module(new Cache(size, addr_len - size, data_len))
-
-
-
-    val outreg = RegInit(0.U(data_len.W))
-
-
-    val waitOneCyc = RegInit(false.B)    //register for waiting one cycle for cache data to become readable
-
-
-   
-
-    
-    //vecad := io.cpuin.addr
-    //daddr.memadr := io.cpuin.addr((size - 1), 0)
-    //daddr.tag := io.cpuin.addr((addr_len-1), size)
-
-    //cache.io.index := daddr
+    val cache = Module(new Cache(size, addr_len - size, data_len, true.B)) //instantiating the cache
 
 
 
-    
-    //outreg := cache.io.dataout
+    val outregdata = RegInit(0.U(data_len.W))               //keep data that is written to memory in register so cpu can continue while memory is written
+    val outregaddr = RegInit(0.U(addr_len.W))           //the address needs to be in register aswell since cache out addr will change with write
+
+    val waitOneCyc = RegInit(false.B)                   //register for waiting one cycle for cache data to become readable
+
 
     io.cpuout.data      := cache.io.dataout
     io.cpuout.valid     := valid
-    io.cpuout.busy      := busy
-    io.cpuout.hit       := hit
+    io.cpuout.busy      := busy 
+    io.cpuout.hit       := hit && valid     //this just ensures that we report hit when the output goes valid since hit value is not valid until that point
 
-    io.memout.addr      := io.cpuin.addr
+    //io.memout.addr      := io.cpuin.addr
+
+    //this can change the addres that goes to memory while we are writing
+    //this is propably last thing to do in device
+    //##############################################################
+    when(io.memin.ready) { //this does not feel right I suspect that this allows writing outregs too early so think trough
+        //maybe just do the write back wo registers and wait fir the write to complete
+        outregaddr := cache.io.tagout##(io.cpuin.addr(size-1, 0))      //these are assigned here as to not disturb previous write to memory when only cahce is writen
+        outregdata := cache.io.dataout
+
+        when(io.cpuin.rw){
+            io.memout.addr     := outregaddr
+        }
+        .otherwise{
+            io.memout.addr     := io.cpuin.addr
+        }
+    } 
+    
     io.memout.req       := req
     io.memout.rw        := io.cpuin.rw
-    io.memout.data      := outreg
+    io.memout.data      := outregdata
 
     cache.io.index      := io.cpuin.addr(size-1, 0)
     cache.io.tag        := io.cpuin.addr(addr_len-1, size)
@@ -125,161 +114,103 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
 
 
 
-
+    //FSM operation loop for cache controller
 
 
     when (state === idle) {
         we := false.B
-        when(hit) {
-            busy := false.B
-            hit := false.B
-            waitOneCyc := false.B
-            //wrback := false.B
-        }
+        busy := false.B
+        waitOneCyc := false.B
+
         when(io.cpuin.valid) {  //maybe use something else                   //this might happen too soon or not not sure
             busy := true.B
             valid := false.B
+            hit := true.B           //true until proven false 
             //io.cpuout.hit := false.B
             state := compare
         }
     }
 
 
-
-
-
-
-
-
-
-
-
-
-
     .elsewhen (state === compare) {
         when(cache.io.valid) {        // if(cache.io.dataout.tail(len-1).asBool().litToBoolean) {
             when(io.cpuin.addr(addr_len-1, size) === cache.io.tagout) {        //check if the tag is same in memory and cpu addr  this may have issue with LSB MSB type thing
                 when(!io.cpuin.rw){
-                    /*
-                    when(valid){                        //this che
-                        state := idle
-                    }
-                    .otherwise{
-                        valid := true.B
-                        hit := true.B 
-                        state := idle
-                    }
-                    */
                     valid := true.B
-                    hit := true.B 
                     state := idle
-                    //io.cpuout.data := cache.io.dataout
-                    
                 }
                 .otherwise{
-                    //wrback := false.B
-                    //hit := true.B
+                    we := true.B
                     state := allocate
-
                 }
             }
-            .elsewhen(io.cpuin.rw){                         //we are writing
-                //now we need to write back
-                outreg := cache.io.dataout
-                //wrback := true.B
-                state := write
+            .elsewhen(io.cpuin.rw){                         //we need to write to memory since the tags don't match
+                when(io.memin.ready) {
+                    outregaddr := cache.io.tagout##(io.cpuin.addr(size-1, 0))      //these are assigned here as to not disturb previous write to memory when only cahce is writen
+                    outregdata := cache.io.dataout
+                    state := write
+                } 
             }
             .otherwise {
                 state := allocate
             }
-
         }
-        /*
-        .elsewhen(io.cpuin.rw){
-            //maybe some walue that signifies no need to write back
-            //wrback := false.B
-            //state := write
-        }
-        */
         .otherwise {
+            when(io.cpuin.rw){
+                we := true.B
+            }
             state := allocate
         }
-
     }
 
 
     .elsewhen (state === write) {               //write-back to memory
-        when(io.memin.ready) {
-            //we prolly dont need to wait the memory to go ready
-            req := true.B
-            //outreg := cache.io.dataout
-            state := allocate
-            /*
-            when(req){
-                state := allocate
-            }
-            .otherwise{
-                req := true.B
-                outreg := cache.io.dataout
-            }
-            */
-        }     
+        hit := false.B              //since we have to write back we don't have direct cache write hit
+        req := true.B
+        we := true.B
+        state := allocate
     }
 
 
     .elsewhen (state === allocate){                     //this takes 3 cycles
-        when(io.cpuin.rw){
-            //cache.io.datain     := io.cpuin.data //this could be moved out of the state loop and just determined with mux by rw
-            we := true.B
+        when(io.cpuin.rw){                  //just write the data to cache
+            we := false.B                   //we will be high for this cycle so next cycle onward it should be low
             req := false.B //this is critical for write
-            //cache.io.datain     := io.memin.data
-            hit := true.B
-            state := idle
-            /*
-            when(cache.io.dataout === io.cpuin.data){       //this wastes alot of comparators
-            //when(waitOneCyc){
-                req := false.B //this is critical for write
-                we := false.B
-                //cache.io.datain     := io.memin.data
-                hit := true.B
-                state := idle
-            }
-            .otherwise{
-                waitOneCyc := true.B
-            }
-            */
+            valid := true.B
+            state := idle   
         }
 
-        .otherwise{                                         //could these be combined
-
-            when(io.memin.ready) {
+        .otherwise{                      //fetch data from memory
+            hit := false.B              //since we need to fetch there was no direct cache hit
+            when(io.memin.ready) {      
                 req := true.B
-
-                //when(io.cpuin.rw) {}
-
             }
-            when(io.memin.valid) {  //elsewhen was here
+            when(io.memin.valid) {    //write data to cache when memory output has valid data //elsewhen was here
                 we := true.B
                 req := false.B
-                //////req := false.B            //this causes erronous behav with current logic of the TB
-                //state := compare                            // there might be some issue due to delay but should not be
-                when(waitOneCyc){
-                    //req := false.B //this breaks everything
+                when(waitOneCyc){       //writing to cache takes one cycle so we just wait known time instead of doing come comparison since that would waste comparators
                     we := false.B
                     state := compare
                 }
                 .otherwise{
                     waitOneCyc := true.B
                 }
-            }
-            //when(cache.io.dataout === io.memin.data){
-            
-        }
-
-
-       
+            }    
+        }     
     }        
-
-
-
 }
+
+
+
+
+/*
+            when(waitOneCyc){           //writing to cache takes one cycle so we just wait known time
+                //req := false.B //this breaks everything
+                we := false.B
+                valid := true.B
+                state := idle
+            }
+            .otherwise{
+                waitOneCyc := true.B
+            }
+            */
