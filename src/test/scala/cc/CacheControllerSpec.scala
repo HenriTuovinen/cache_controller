@@ -263,11 +263,13 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {
 
           if(dut.io.memout.req.peek().litToBoolean){          //this seems meaningless maybe should rethink
+            //dut.clock.step(1)
             dut.io.memin.ready.poke(false.B)
             dut.clock.step(4)
 
             //dut.io.memout.data.expect(writedata(i))
             //dut.io.memin.ready.poke(false.B)
+            dut.io.memin.ready.poke(true.B)
             dut.io.memin.valid.poke(true.B)
           }
 
@@ -361,11 +363,13 @@ it should "test Writing twice to same address, aka we should never write-back in
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
 
           if(dut.io.memout.req.peek().litToBoolean){          //this seems meaningless maybe should rethink
+            //dut.clock.step(1)
             dut.io.memin.ready.poke(false.B)
             dut.clock.step(4)
 
             //dut.io.memout.data.expect(writedata(i))
             //dut.io.memin.ready.poke(false.B)
+            dut.io.memin.ready.poke(true.B)
             dut.io.memin.valid.poke(true.B)
           }
 
