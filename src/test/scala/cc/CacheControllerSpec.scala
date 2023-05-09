@@ -30,30 +30,24 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
 
 
-          //main issues
-          //hit is not working correctly, by desing but this should be fixed
-          // hit and valid operatin for writing should be reconsidered os the while logic works properly
-
-
-
-
-
-
-
-
-
-
 
   it should "test Reading" in {
     test(new CacheController(size, addr_len, data_len)).withAnnotations (Seq( WriteVcdAnnotation )) {dut =>//. withAnnotations (Seq( WriteVcdAnnotation ))
       val randgen         = new Random(777)         //remove when operatoin is correct
       val numTests : Int  = 10                      //increase when operation is correct
+      //val addr = Seq.tabulate(numTests){i=>scala.util.Random.nextInt(math.pow(2, addr_len).toInt-1).U(addr_len.W)}
       val addr            = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, addr_len).toInt-1).U(addr_len.W)}
       val memdata         = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       val writedata       = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       
       
       for (i <- 0 until numTests) {
+        if(i % 3 == 0){                               //test idling the cache controller when cpu doesn't want anything
+          dut.io.cpuin.valid.poke(false.B)
+          dut.clock.step(4)
+          dut.io.cpuout.busy.expect(false.B)
+        }
+
         dut.io.cpuin.addr.poke(addr(i))
         dut.io.cpuin.valid.poke(true.B)
         dut.io.cpuin.rw.poke(false.B)
@@ -62,14 +56,21 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.memin.data.poke(memdata(i))
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
+
         dut.clock.step(1)
 
         //hit can not be used here since it is not always true, valid however should be
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {  //step clock while cc is busy
           if(dut.io.memout.req.peek().litToBoolean){
+            dut.io.memout.addr.expect(addr(i))
+            dut.io.memout.req.expect(true.B)
+            dut.io.memout.rw.expect(false.B)
+            //dut.io.memout.data.expect(0.U)      //meaningless at this time
+
             dut.io.memin.ready.poke(false.B)
             dut.clock.step(4)
             dut.io.memin.valid.poke(true.B)
+            dut.io.memin.ready.poke(true.B)
             //dut.io.memout.data.expect(7.U) //this fails as it should
           }
           dut.clock.step(1)
@@ -77,35 +78,14 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
         dut.io.cpuout.data.expect(memdata(i))
         dut.io.cpuout.valid.expect(true.B)
-        //dut.io.cpuout.busy.expect(false.B)
-        //dut.io.cpuout.hit.expect(false.B)
-
-        dut.io.memout.addr.expect(addr(i))
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(false.B)             // the tags never match so no hits
 
       }
 
       dut.clock.step(1)                 //This is probably not nessesary
     }
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -129,6 +109,12 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
       
       
       for (i <- 0 until numTests) {
+        if(i % 3 == 0){                               //test idling the cache controller when cpu doesn't want anything
+          dut.io.cpuin.valid.poke(false.B)
+          dut.clock.step(4)
+          dut.io.cpuout.busy.expect(false.B)
+        }
+
         dut.io.cpuin.addr.poke(addr(i))
         dut.io.cpuin.valid.poke(true.B)
         dut.io.cpuin.rw.poke(false.B)
@@ -137,24 +123,29 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.memin.data.poke(memdata(i))
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
+
         dut.clock.step(1)
 
 
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {  //step clock while cc is busy
           if(dut.io.memout.req.peek().litToBoolean){
+            dut.io.memout.addr.expect(addr(i))
+            dut.io.memout.req.expect(true.B)
+            dut.io.memout.rw.expect(false.B)
+
             dut.io.memin.ready.poke(false.B)
             dut.clock.step(4)
             dut.io.memin.valid.poke(true.B)
+            dut.io.memin.ready.poke(true.B)
           }
           dut.clock.step(1)
         }
 
         dut.io.cpuout.data.expect(memdata(i))
         dut.io.cpuout.valid.expect(true.B)
-        //dut.io.cpuout.busy.expect(false.B)
-        //dut.io.cpuout.hit.expect(false.B)                 //this works when the hit logic is fixed
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(false.B)             // the tags never match so no hits
 
-        dut.io.memout.addr.expect(addr(i))
 
 
         
@@ -164,7 +155,7 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
 
 
-        dut.io.memin.data.poke(0.U)                   //this is intentionally wrong so reading from memory results in error
+        dut.io.memin.data.poke(0.U)                   //this is intentionally "wrong" so reading from memory results in error
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
         dut.clock.step(1)
@@ -173,27 +164,17 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
 
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {
-          if(dut.io.memout.req.peek().litToBoolean){
-            dut.io.memin.ready.poke(false.B)
-            dut.clock.step(4)
-            dut.io.memout.data.expect(7.U)                //why this passes!!!!!!!!!!!!!!! because we newer come here
-            dut.io.memin.valid.poke(true.B)               //because the data is allready in cache as it should
-          }
+          dut.io.memout.req.expect(false.B)       //we should never request data from memory
+       
           dut.clock.step(1)
         }
 
         dut.io.cpuout.data.expect(memdata(i))
         dut.io.cpuout.valid.expect(true.B)
-        //dut.io.cpuout.busy.expect(false.B)
+        dut.io.cpuout.busy.expect(true.B)
         dut.io.cpuout.hit.expect(true.B)
 
         dut.io.memout.addr.expect(addr(i))
-
-
-
-        //dut.clock.step(1)
-        
-
       }
     }
   }
@@ -215,38 +196,22 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- it should "test Writing" in {              //write-backs will happen randomly
+ it should "test Writing" in {              //write-backs will not happen since no duplicate indexes
     test(new CacheController(size, addr_len, data_len)).withAnnotations (Seq( WriteVcdAnnotation )) {dut =>//. withAnnotations (Seq( WriteVcdAnnotation ))
       val randgen         = new Random(777)
-      val numTests : Int  = 10
+      val numTests : Int  = 7
       val addr            = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, addr_len).toInt-1).U(addr_len.W)}
       val memdata         = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       val writedata       = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       
       
       for (i <- 0 until numTests) {
+        if(i % 3 == 0){                               //test idling the cache controller when cpu doesn't want anything
+          dut.io.cpuin.valid.poke(false.B)
+          dut.clock.step(4)
+          dut.io.cpuout.busy.expect(false.B)
+        }
+
         dut.io.cpuin.addr.poke(addr(i))
         dut.io.cpuin.valid.poke(true.B)
         dut.io.cpuin.rw.poke(true.B)
@@ -255,52 +220,23 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
         dut.io.memin.data.poke(0.U)
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
+
         dut.clock.step(1)
 
-        
-
-                            //change to valid when it and hit is fixed
         while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {
-
-          if(dut.io.memout.req.peek().litToBoolean){          //this seems meaningless maybe should rethink
-            //dut.clock.step(1)
-            dut.io.memin.ready.poke(false.B)
-            dut.clock.step(4)
-
-            //dut.io.memout.data.expect(writedata(i))
-            //dut.io.memin.ready.poke(false.B)
-            dut.io.memin.ready.poke(true.B)
-            dut.io.memin.valid.poke(true.B)
-          }
-
-
+          dut.io.memout.req.expect(false.B)                   //since we should not write back no requests should be made
+          
           dut.clock.step(1)
         }
 
-        dut.clock.step(1)                              // should think better logic for the above so this is not nessesary
-        //maybe add something like
-        //expect that this fails( *test that fails* )
+        dut.io.cpuout.data.expect(writedata(i))               //data should be in cache now
+        dut.io.cpuout.valid.expect(true.B)
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(true.B)                      // no writebacks so hit everytime
 
-
-        //dut.io.memout.data.expect(writedata(i)) //this faíls as it should          //should not have this since the memory is empty nad no write back happens
-        
-        
-        
-        
-        //this needs some logic for write back since we do not have a valid meout addr when we are not writing back
-    //    dut.io.memout.addr.expect(addr(i))
-        //##################################################################################################################
-
-
-
-
-
-
-        dut.io.cpuout.data.expect(writedata(i))             //this should hold since this is output from cache
-        //dut.io.cpuout.valid.expect(true.B)            //not working yet
-
-        //dut.io.cpuout.busy.expect(false.B)
-        //dut.io.cpuout.hit.expect(false.B)           //have to think how hit works now
+        dut.io.memout.addr.expect(addr(i))                    //address should be in cache now
+        dut.io.memout.rw.expect(true.B)
+        dut.io.memout.data.expect(writedata(i)) 
       }
     }
   }
@@ -337,17 +273,23 @@ class CacheControllerSpec extends AnyFlatSpec with ChiselScalatestTester {
 
 
 
-it should "test Writing twice to same address, aka we should never write-back in same i cycle since the tag is same" in {
+it should "test Writing twice to same address with same tag, aka we should never write-back in same i cycle" in {
     test(new CacheController(size, addr_len, data_len)).withAnnotations (Seq( WriteVcdAnnotation )) {dut =>//. withAnnotations (Seq( WriteVcdAnnotation ))
       val randgen         = new Random(777)
-      val numTests : Int  = 10
+      val numTests : Int  = 7                             //this setup does not produce duplicates "natutrally" so testing is easily controllable
       val addr            = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, addr_len).toInt-1).U(addr_len.W)}
       val memdata         = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       val writedata       = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       
       
       for (i <- 0 until numTests) {
-       dut.io.cpuin.addr.poke(addr(i))
+        if(i % 3 == 0){                             //test idling the cache controller when cpu doesn't want anything
+
+          dut.io.cpuin.valid.poke(false.B)
+          dut.clock.step()
+          dut.io.cpuout.busy.expect(false.B)
+        }
+        dut.io.cpuin.addr.poke(addr(i))
         dut.io.cpuin.valid.poke(true.B)
         dut.io.cpuin.rw.poke(true.B)
         dut.io.cpuin.data.poke(writedata(i))
@@ -355,110 +297,49 @@ it should "test Writing twice to same address, aka we should never write-back in
         dut.io.memin.data.poke(0.U)
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
+
         dut.clock.step(1)
 
-        
-
-                            //change to valid when it and hit is fixed
-        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
-
-          if(dut.io.memout.req.peek().litToBoolean){          //this seems meaningless maybe should rethink
-            //dut.clock.step(1)
-            dut.io.memin.ready.poke(false.B)
-            dut.clock.step(4)
-
-            //dut.io.memout.data.expect(writedata(i))
-            //dut.io.memin.ready.poke(false.B)
-            dut.io.memin.ready.poke(true.B)
-            dut.io.memin.valid.poke(true.B)
-          }
-
-
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {
+          dut.io.memout.req.expect(false.B)                   //since we should not write back no requests should be made
+          
           dut.clock.step(1)
         }
-        //maybe add something like
-        //expect that this fails( *test that fails* )
-        dut.clock.step(1)                              // should think better logic for the above so this is not nessesary
 
-        //dut.io.memout.data.expect(writedata(i)) //this faíls as it should          //should not have this since the memory is empty nad no write back happens
-   //     dut.io.memout.addr.expect(addr(i))
+        dut.io.cpuout.data.expect(writedata(i))               //data should be in cache now
+        dut.io.cpuout.valid.expect(true.B)
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(true.B)                      // no writebacks so hit everytime
 
-
-
-
-
-
-
-        dut.io.cpuout.data.expect(writedata(i))             //this should hold since this is output from cache
-       // dut.io.cpuout.valid.expect(true.B)
-
-        //dut.io.cpuout.busy.expect(false.B)
-        //dut.io.cpuout.hit.expect(false.B)           //have to think how hit works now
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        dut.io.memout.addr.expect(addr(i))                    //address should be in cache now
+        dut.io.memout.rw.expect(true.B)
+        dut.io.memout.data.expect(writedata(i)) 
 
         dut.clock.step(1)
 
 
+        dut.io.cpuin.data.poke(memdata(i))                  //write different data so cache write can be confirmed
 
-        dut.io.cpuin.data.poke(memdata(i))                  //write different data so it is easier to see
-
-        dut.io.memin.valid.poke(false.B)
-        dut.io.memin.ready.poke(true.B)
         dut.clock.step(1)
 
         
 
-
-        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
-          if(dut.io.memout.req.peek().litToBoolean){
-            dut.io.memin.ready.poke(false.B)
-            dut.clock.step(4)
-            
-            //dut.io.memout.data.expect(memdata(i))
-            //dut.io.memin.ready.poke(false.B)
-            dut.io.memin.valid.poke(true.B)
-
-
-
-
-
-          }
-
-
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {
+          dut.io.memout.req.expect(false.B)                   //since we should not write back no requests should be made
+          
           dut.clock.step(1)
         }
-        dut.clock.step(1)                              // should think better logic for the above so this is not nessesary
 
+        //dut.clock.step(1)                              // should think better logic for the above so this is not nessesary
 
-        //dut.io.memout.data.expect(writedata(i))          //should not have this since the memory is empty nad no write back happens
-//        dut.io.memout.addr.expect(addr(i))
+        dut.io.cpuout.data.expect(memdata(i))               //data should be in cache now
+        dut.io.cpuout.valid.expect(true.B)
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(true.B)                      // no writebacks so hit everytime
 
-
-
-
-
-
-
-
-        dut.io.cpuout.data.expect(memdata(i))            //this should hold since this is output from cache
-        
-        //dut.io.cpuout.valid.expect(true.B)
-
-        //dut.io.cpuout.busy.expect(false.B)
-        //dut.io.cpuout.hit.expect(false.B)  
+        dut.io.memout.addr.expect(addr(i))                    //address should be in cache now
+        dut.io.memout.rw.expect(true.B)
+        dut.io.memout.data.expect(memdata(i)) 
 
         //dut.clock.step(1)     
       }
@@ -473,19 +354,31 @@ it should "test Writing twice to same address, aka we should never write-back in
 
 
 
-/*
+
 
   it should "test Writing twice to same index but different tag, aka we have to write-back once every i cycle" in {
     test(new CacheController(size, addr_len, data_len)).withAnnotations (Seq( WriteVcdAnnotation )) {dut =>//. withAnnotations (Seq( WriteVcdAnnotation ))
       val randgen         = new Random(777)
-      val numTests : Int  = 10
-      val addr            = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, addr_len).toInt-1).U(addr_len.W)}
+      val numTests : Int  = 7
+
+
+      val addr            = Seq.tabulate(numTests){i=>(i + 16).toInt.U(addr_len.W)}
+      val altaddr         = Seq.tabulate(numTests){i=>(i + 32).toInt.U(addr_len.W)}
+
+
+
       val memdata         = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       val writedata       = Seq.tabulate(numTests){i=>randgen.nextInt(math.pow(2, data_len).toInt-1).U(data_len.W)}
       
       
       for (i <- 0 until numTests) {
-       dut.io.cpuin.addr.poke(addr(i))
+        if(i % 3 == 0){                             //test idling the cache controller when cpu doesn't want anything
+
+          dut.io.cpuin.valid.poke(false.B)
+          dut.clock.step()
+          dut.io.cpuout.busy.expect(false.B)
+        }
+        dut.io.cpuin.addr.poke(addr(i))
         dut.io.cpuin.valid.poke(true.B)
         dut.io.cpuin.rw.poke(true.B)
         dut.io.cpuin.data.poke(writedata(i))
@@ -493,93 +386,65 @@ it should "test Writing twice to same address, aka we should never write-back in
         dut.io.memin.data.poke(0.U)
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
+
         dut.clock.step(1)
 
-        
-
-                            //change to valid when it and hit is fixed
-        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
-
-          if(dut.io.memout.req.peek().litToBoolean){          //this seems meaningless maybe should rethink
-            dut.io.memin.ready.poke(false.B)
-            dut.clock.step(4)
-
-            //dut.io.memout.data.expect(writedata(i))
-            //dut.io.memin.ready.poke(false.B)
-            dut.io.memin.valid.poke(true.B)
-          }
-
-
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {
+          dut.io.memout.req.expect(false.B)                   //since we should not write back no requests should be made
+          
           dut.clock.step(1)
         }
-        dut.clock.step(1)                              // should think better logic for the above so this is not nessesary
-        //maybe add something like
-        //expect that this fails( *test that fails* )
 
+        dut.io.cpuout.data.expect(writedata(i))               //data should be in cache now
+        dut.io.cpuout.valid.expect(true.B)
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(true.B)                      // no writebacks so hit everytime
 
-        //dut.io.memout.data.expect(writedata(i)) //this faíls as it should          //should not have this since the memory is empty nad no write back happens
-        dut.io.memout.addr.expect(addr(i))
-        //dut.io.cpuout.data.expect(writedata(i))             //this should hold since this is output from cache
-        //dut.io.cpuout.valid.expect(true.B)
-
-        //dut.io.cpuout.busy.expect(false.B)
-        //dut.io.cpuout.hit.expect(false.B)           //have to think how hit works now
+        dut.io.memout.addr.expect(addr(i))                    //address should be in cache now
+        dut.io.memout.rw.expect(true.B)
+        dut.io.memout.data.expect(writedata(i)) 
 
 
 
-
-        dut.clock.step(1)
-
-
-
-        //the idea is correct but have to use scala functions to splice and invert
-        //dut.io.cpuin.addr.poke(~addr(i)(addr_len-1, size)##(addr(i)(size-1, 0)))    //same index with inverted tag so we should write-back
+        dut.io.cpuin.addr.poke(altaddr(i))
         dut.io.cpuin.valid.poke(true.B)
         dut.io.cpuin.rw.poke(true.B)
-        dut.io.cpuin.data.poke(memdata(i))                  //write different data so it is easier to see
+        dut.io.cpuin.data.poke(memdata(i))                  //write different data so cache write can be confirmed
 
-        dut.io.memin.data.poke(0.U)
+        dut.io.memin.data.poke(writedata(i))                //writedata will be written to memory so it should be returned
         dut.io.memin.valid.poke(false.B)
         dut.io.memin.ready.poke(true.B)
+
         dut.clock.step(1)
 
         
+        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.valid.peek().litToBoolean)) {
 
+          if(dut.io.memout.req.peek().litToBoolean){          //this seems meaningless maybe should rethink
+            dut.io.memout.addr.expect(addr(i))
+            dut.io.memout.req.expect(true.B)
+            dut.io.memout.rw.expect(true.B)
+            dut.io.memout.data.expect(writedata(i))
 
-        while (dut.io.cpuout.busy.peek().litToBoolean && !(dut.io.cpuout.hit.peek().litToBoolean)) {
-          if(dut.io.memout.req.peek().litToBoolean){
             dut.io.memin.ready.poke(false.B)
             dut.clock.step(4)
-            
-            //dut.io.memout.data.expect(memdata(i))
-            //dut.io.memin.ready.poke(false.B)
             dut.io.memin.valid.poke(true.B)
+            dut.io.memin.ready.poke(true.B)
           }
           dut.clock.step(1)
         }
-        dut.clock.step(1)                              // should think better logic for the above so this is not nessesary
 
+        dut.io.cpuout.data.expect(memdata(i))               //new data should be in cache now
+        dut.io.cpuout.valid.expect(true.B)
+        dut.io.cpuout.busy.expect(true.B)
+        dut.io.cpuout.hit.expect(false.B)                      // no writebacks so hit everytime
 
-        dut.io.memout.data.expect(writedata(i)) //now we should have the previous cache content since we write-back
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        //read address where we write to memory from cache
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        dut.io.memout.addr.expect(addr(i))      // this may cause some issue since the address should be read from memory
-        dut.io.cpuout.data.expect(memdata(i))             //this should hold since this is output from cache
-       // dut.io.cpuout.valid.expect(true.B)
-
-        //dut.io.cpuout.busy.expect(false.B)
-        //dut.io.cpuout.hit.expect(false.B)           //have to think how hit works now
-
-
-        dut.clock.step(1)
-        
-
+        dut.io.memout.addr.expect(altaddr(i))                  //new address should be in cache now
+        dut.io.memout.rw.expect(true.B)
+        dut.io.memout.data.expect(memdata(i)) 
       }
     }
   }
-*/
 
 
 

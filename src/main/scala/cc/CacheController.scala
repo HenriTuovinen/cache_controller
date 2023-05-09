@@ -25,6 +25,13 @@ class CcMemoryInputBundle(val data_len: Int) extends Bundle{
     val ready   = Input(Bool())
 }
 
+
+
+
+
+
+
+
 class CcCPUOutputBundle(val data_len: Int) extends Bundle{
     val data    = Output(UInt(data_len.W))
     val valid   = Output(Bool())
