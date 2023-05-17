@@ -7,6 +7,9 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental._
 
+
+
+
 object State extends ChiselEnum{                                   //enumeration for the finite state machine
     val idle, compare, write, allocate = Value
 }
@@ -25,13 +28,6 @@ class CcMemoryInputBundle(val data_len: Int) extends Bundle{
     val ready   = Input(Bool())
 }
 
-
-
-
-
-
-
-
 class CcCPUOutputBundle(val data_len: Int) extends Bundle{
     val data    = Output(UInt(data_len.W))
     val valid   = Output(Bool())
@@ -48,7 +44,7 @@ class CcMemoryOutputBundle(val addr_len: Int, val data_len: Int) extends Bundle{
 
 
 
-class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends Module{
+class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32, debug: Boolean = false) extends Module{
     require(size >= 0)                                                          //size means the length of cache addres
     require(addr_len >= 0)                                                      //length of the memory address
     require(data_len >= 0)                                                      //length of data
@@ -69,7 +65,7 @@ class CacheController(size: Int, addr_len: Int = 32, data_len: Int = 32) extends
 
     val waitOneCyc = RegInit(false.B)                                            //register for waiting one cycle for cache data to become readable
 
-    val cache = Module(new Cache(size, addr_len - size, data_len, true.B))      //instantiating the cache
+    val cache = Module(new Cache(size, addr_len - size, data_len, debug))  //, true.B))      //instantiating the cache
 
     // wiring cpu out ports
     io.cpuout.data      := cache.io.dataout
